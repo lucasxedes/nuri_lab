@@ -29,7 +29,7 @@ def cadastro(request):
         
         try:
             user = User.objects.create_user(username=usuario,
-                                                                                email=email,
+                                            email=email,
                                             password=senha,
                                             is_active=False)
             user.save()
