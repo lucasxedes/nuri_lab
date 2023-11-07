@@ -23,51 +23,54 @@ def cadastro(request):
         senha = request.POST.get('senha')
         email = request.POST.get('email')
         confirmar_senha = request.POST.get('confirmar_senha')
-        
+
         if not password_is_valid(request, senha, confirmar_senha):
             return redirect('/auth/cadastro/')
-        
+
         try:
-            user = User.objects.create_user(username=usuario,
-                                            email=email,
-                                            password=senha,
-                                            is_active=False)
-            user.save()
-            
-            token = sha256(f"{usuario}{email}".encode()).hexdigest()
-            ativacao = Ativacao(token=token, user=user)
-            ativacao.save()
-            
-            path_template = os.path.join(settings.BASE_DIR, 'autenticacao/templates/emails/cadastro_confirmado.html')
-            email_html(path_template, 'Cadastro confirmado', [email,], username=usuario, link_ativacao=f"127.0.0.1:8000/auth/ativar_conta/{token}")
-            
-            
-            
-            messages.add_message(request, constants.SUCCESS, 'Usuario cadastrado com sucesso!')
-            return redirect('/auth/logar')
-        except:
+            return extrair_cadastro(usuario, email, senha, request)
+        except Exception:
             messages.add_message(request, constants.ERROR, 'Erro interno do sistema!')
             return redirect('/auth/cadastro')
+
+
+
+def extrair_cadastro(usuario, email, senha, request):
+    user = User.objects.create_user(username=usuario,
+                                    email=email,
+                                    password=senha,
+                                    is_active=False)
+    user.save()
+
+    token = sha256(f"{usuario}{email}".encode()).hexdigest()
+    ativacao = Ativacao(token=token, user=user)
+    ativacao.save()
+
+    path_template = os.path.join(settings.BASE_DIR, 'autenticacao/templates/emails/cadastro_confirmado.html')
+    email_html(path_template, 'Cadastro confirmado', [email,], username=usuario, link_ativacao=f"127.0.0.1:8000/auth/ativar_conta/{token}")
+
+
+
+    messages.add_message(request, constants.SUCCESS, 'Usuario cadastrado com sucesso!')
+    return redirect('/auth/logar')
         
 
 
 def logar(request):
     if request.method == 'GET':
         if request.user.is_authenticated:
-            return redirect('/')
+            return redirect('/pacientes/')
         return render(request, template_name='logar.html')
     elif request.method == 'POST':
         username = request.POST.get('usuario')
         senha = request.POST.get('senha')
-        
-        usuario = auth.authenticate(username=username, password=senha)
-        
-        if not usuario:
+
+        if usuario := auth.authenticate(username=username, password=senha):
+            auth.login(request, usuario)
+            return redirect('/pacientes/')
+        else:
             messages.add_message(request, constants.ERROR, 'Username ou senha invalidos!')
             return redirect('/auth/logar/')
-        else:
-            auth.login(request, usuario)
-            return redirect('/')
 
 def sair(request):
     auth.logout(request)

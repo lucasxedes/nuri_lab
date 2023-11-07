@@ -2,7 +2,7 @@ from django.shortcuts import render, redirect, get_object_or_404
 from django.http import HttpResponse, JsonResponse
 from django.contrib.auth.decorators import login_required
 from .utils import pacientes_is_valid
-from .models import Pacientes, DadosPaciente
+from .models import Pacientes, DadosPaciente, Refeicao, Opcao
 from django.contrib.messages import constants
 from django.contrib import messages
 from datetime import datetime
@@ -50,10 +50,10 @@ def dados_paciente_listar(request):
 @login_required(login_url='/auth/logar/')
 def dados_paciente(request, id):
     paciente = get_object_or_404(Pacientes, id=id)
-    if not paciente.nutri == request.user:
+    if paciente.nutri != request.user:
         messages.add_message(request, constants.ERROR, 'Esse paciente não é seu')
         return redirect('/dados_paciente/')
-        
+
     if request.method == "GET":
         dados_paciente = DadosPaciente.objects.filter(paciente=paciente)
         return render(request, 'dados_paciente.html', {'paciente': paciente, 'dados_paciente': dados_paciente})
@@ -67,7 +67,7 @@ def dados_paciente(request, id):
         ldl = request.POST.get('ldl')
         colesterol_total = request.POST.get('ctotal')
         triglicerídios = request.POST.get('triglicerídios')
-        
+
         paciente = DadosPaciente(paciente=paciente,
                                 data=datetime.now(),
                                 peso=peso,
@@ -100,3 +100,61 @@ def grafico_peso(request, id):
     data = {'peso': pesos,
             'labels': labels}
     return JsonResponse(data)
+
+
+@login_required(login_url='/auth/logar/')
+def plano_alimentar_listar(request):
+    if request.method == "GET":
+        pacientes = Pacientes.objects.filter(nutri = request.user)
+        return render(request, 'plano_alimentar_listar.html', {'pacientes' : pacientes})
+    
+def plano_alimentar(request, id):
+    paciente = get_object_or_404(Pacientes, id=id)
+    if paciente.nutri != request.user:
+        messages.add_message(request, constants.ERROR, 'Esse paciente não é seu')
+        return redirect('/plano_alimentar_listar/')
+
+    if request.method == "GET":
+        r1 = Refeicao.objects.filter(paciente=paciente).order_by("horario")
+        opcao = Opcao.objects.all()
+        return render(request, 'plano_alimentar.html', {'paciente': paciente, 'refeicao': r1, 'opcao': opcao })
+    
+def refeicao(request, id_paciente):
+    paciente = get_object_or_404(Pacientes, id=id_paciente)
+    if paciente.nutri != request.user:
+        messages.add_message(request, constants.ERROR, 'Esse paciente não é seu')
+        return redirect('/dados_paciente/')
+
+    if request.method == "POST":
+        titulo = request.POST.get('titulo')
+        horario = request.POST.get('horario')
+        carboidratos = request.POST.get('carboidratos')
+        proteinas = request.POST.get('proteinas')
+        gorduras = request.POST.get('gorduras')
+
+        r1 = Refeicao(paciente=paciente,
+                      titulo=titulo,
+                      horario=horario,
+                      carboidratos=carboidratos,
+                      proteinas=proteinas,
+                      gorduras=gorduras)
+
+        r1.save()
+
+        messages.add_message(request, constants.SUCCESS, 'Refeição cadastrada')
+        return redirect(f'/plano_alimentar/{id_paciente}')
+    
+def opcao(request, id_paciente):
+    if request.method == "POST":
+        id_refeicao = request.POST.get('refeicao')
+        imagem = request.FILES.get('imagem')
+        descricao = request.POST.get("descricao")
+
+        o1 = Opcao(refeicao_id=id_refeicao,
+                   imagem=imagem,
+                   descricao=descricao)
+
+        o1.save()
+
+        messages.add_message(request, constants.SUCCESS, 'Opção cadastrada')
+        return redirect(f'/plano_alimentar/{id_paciente}')
